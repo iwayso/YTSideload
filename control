@@ -1,0 +1,10 @@
+Package: com.balackburn.ytsideload
+Name: YTSideload
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: YouTube sideloading fix — keychain access group + bundle identifier patches that let a resigned YouTube.ipa run and log in on non-App-Store installs.
+Maintainer: Balackburn
+Author: Balackburn (fork of dayanch96/YTLite sideloading module)
+Section: Tweaks
+Depends: mobilesubstrate
+Tag: role::hacker
