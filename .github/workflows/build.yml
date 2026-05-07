@@ -1,0 +1,55 @@
+name: Build YTSideload dylib
+
+on:
+  push:
+    branches: [ patch-1 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Theos
+        uses: actions/checkout@v4
+        with:
+          repository: theos/theos
+          path: theos
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y ldid
+
+      - name: Download iOS SDK
+        run: |
+          curl -L -o sdk.tar.xz \
+            "https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz"
+          mkdir -p theos/sdks
+          tar -xJf sdk.tar.xz -C theos/sdks
+
+      - name: Build package
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: make package THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Extract dylib
+        run: |
+          mkdir -p build
+          DEB=$(ls -t packages/*.deb | head -1)
+          TMP=$(mktemp -d)
+          dpkg-deb -x "$DEB" "$TMP"
+          find "$TMP" -name "YTSideload.dylib" -exec cp {} build/YTSideload.dylib \;
+          echo "Built:"
+          ls -lh build/
+
+      - name: Upload dylib artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YTSideload-dylib
+          path: build/YTSideload.dylib
+          if-no-files-found: error
