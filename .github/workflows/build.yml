@@ -23,14 +23,20 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y ldid
+          # ldid is not in standard Ubuntu repos — use pre-built binary from ProcursusTeam
+          curl -fsSL "https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64" \
+            -o /usr/local/bin/ldid
+          chmod +x /usr/local/bin/ldid
+          ldid --version || true
 
       - name: Download iOS SDK
         run: |
-          curl -L -o sdk.tar.xz \
-            "https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz"
-          mkdir -p theos/sdks
-          tar -xJf sdk.tar.xz -C theos/sdks
+          SDK_URL=$(curl -s https://api.github.com/repos/theos/sdks/releases/latest \
+            | python3 -c "import sys,json; assets=json.load(sys.stdin)['assets']; \
+              url=next((a['browser_download_url'] for a in assets if 'iPhoneOS' in a['name'] and a['name'].endswith('.tar.xz')), ''); \
+              print(url)")
+          echo "SDK URL: $SDK_URL"
+          curl -fsSL "$SDK_URL" | tar -xJf - -C theos/sdks
 
       - name: Build package
         env:
