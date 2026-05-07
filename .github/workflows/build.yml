@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
@@ -22,35 +22,36 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update -q
-          # ldid is not in standard Ubuntu repos — use pre-built binary from ProcursusTeam
-          curl -fsSL "https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64" \
-            -o /usr/local/bin/ldid
-          chmod +x /usr/local/bin/ldid
-          ldid --version || true
+          brew install ldid dpkg
 
-      - name: Download iOS SDK
+      - name: Link Xcode iOS SDK into Theos
         run: |
-          SDK_URL=$(curl -s https://api.github.com/repos/theos/sdks/releases/latest \
-            | python3 -c "import sys,json; assets=json.load(sys.stdin)['assets']; \
-              url=next((a['browser_download_url'] for a in assets if 'iPhoneOS' in a['name'] and a['name'].endswith('.tar.xz')), ''); \
-              print(url)")
-          echo "SDK URL: $SDK_URL"
-          curl -fsSL "$SDK_URL" | tar -xJf - -C theos/sdks
+          XCODE_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          SDK_VER=$(xcrun --sdk iphoneos --show-sdk-version)
+          mkdir -p theos/sdks
+          ln -sf "$XCODE_SDK" "theos/sdks/iPhoneOS${SDK_VER}.sdk"
+          echo "SDK ${SDK_VER} linked at theos/sdks/"
+          ls theos/sdks/
 
-      - name: Build package
+      - name: Build tweak
         env:
           THEOS: ${{ github.workspace }}/theos
-        run: make package THEOS_PACKAGE_SCHEME=rootless
+        run: |
+          make THEOS_PACKAGE_SCHEME=rootless
+          echo "Build output:"
+          find .theos/obj -name "*.dylib" 2>/dev/null || true
 
-      - name: Extract dylib
+      - name: Collect dylib
         run: |
           mkdir -p build
-          DEB=$(ls -t packages/*.deb | head -1)
-          TMP=$(mktemp -d)
-          dpkg-deb -x "$DEB" "$TMP"
-          find "$TMP" -name "YTSideload.dylib" -exec cp {} build/YTSideload.dylib \;
-          echo "Built:"
+          DYLIB=$(find .theos/obj -name "YTSideload.dylib" | head -1)
+          if [ -z "$DYLIB" ]; then
+            echo "dylib not found in .theos/obj, searching broader..."
+            find . -name "YTSideload.dylib" | grep -v '.git'
+            exit 1
+          fi
+          cp "$DYLIB" build/YTSideload.dylib
+          echo "Copied: $DYLIB -> build/YTSideload.dylib"
           ls -lh build/
 
       - name: Upload dylib artifact
